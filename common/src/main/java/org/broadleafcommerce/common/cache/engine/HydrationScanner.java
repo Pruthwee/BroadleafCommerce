@@ -25,8 +25,8 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.EmptyVisitor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +39,7 @@ import jakarta.persistence.Id;
 /**
  * @author jfischer
  */
-public class HydrationScanner implements ClassVisitor, FieldVisitor, AnnotationVisitor {
+public class HydrationScanner extends ClassVisitor {
 
     private static final int CLASSSTAGE = 0;
     private static final int FIELDSTAGE = 1;
@@ -59,6 +59,7 @@ public class HydrationScanner implements ClassVisitor, FieldVisitor, AnnotationV
     private Class fieldClass;
     @SuppressWarnings("unchecked")
     public HydrationScanner(Class topEntityClass, Class entityClass) {
+        super(Opcodes.ASM9);
         this.topEntityClass = topEntityClass;
         this.entityClass = entityClass;
     }
@@ -115,7 +116,7 @@ public class HydrationScanner implements ClassVisitor, FieldVisitor, AnnotationV
                 break;
             }
         }
-        return this;
+        return new HydrationAnnotationVisitor();
     }
 
     private Method[] retrieveMutators() {
@@ -211,15 +212,11 @@ public class HydrationScanner implements ClassVisitor, FieldVisitor, AnnotationV
                 }
                 break;
         }
-        return this;
-    }
-
-    public void visitInnerClass(String arg0, String arg1, String arg2, int arg3) {
-        //do nothing
+        return new HydrationFieldVisitor();
     }
 
     public MethodVisitor visitMethod(int arg0, String arg1, String arg2, String arg3, String[] arg4) {
-        return new EmptyVisitor();
+        return new MethodVisitor(Opcodes.ASM9) {};
     }
 
     public void visitOuterClass(String arg0, String arg1, String arg2) {
@@ -243,16 +240,74 @@ public class HydrationScanner implements ClassVisitor, FieldVisitor, AnnotationV
         }
     }
 
-    public AnnotationVisitor visitAnnotation(String arg0, String arg1) {
-        return this;
-    }
-
     public AnnotationVisitor visitArray(String arg0) {
-        return this;
+        return new HydrationAnnotationVisitor();
     }
 
     public void visitEnum(String arg0, String arg1, String arg2) {
         //do nothing
+    }
+
+    /**
+     * Inner class that extends FieldVisitor and delegates to the outer HydrationScanner.
+     * This is needed because in ASM 9.x, FieldVisitor is an abstract class (not an interface),
+     * so we cannot implement it directly alongside ClassVisitor.
+     */
+    private class HydrationFieldVisitor extends FieldVisitor {
+        public HydrationFieldVisitor() {
+            super(Opcodes.ASM9);
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+            return HydrationScanner.this.visitAnnotation(desc, visible);
+        }
+
+        @Override
+        public void visitAttribute(Attribute attribute) {
+            HydrationScanner.this.visitAttribute(attribute);
+        }
+
+        @Override
+        public void visitEnd() {
+            HydrationScanner.this.visitEnd();
+        }
+    }
+
+    /**
+     * Inner class that extends AnnotationVisitor and delegates to the outer HydrationScanner.
+     * This is needed because in ASM 9.x, AnnotationVisitor is an abstract class (not an interface),
+     * so we cannot implement it directly alongside ClassVisitor.
+     */
+    private class HydrationAnnotationVisitor extends AnnotationVisitor {
+        public HydrationAnnotationVisitor() {
+            super(Opcodes.ASM9);
+        }
+
+        @Override
+        public void visit(String name, Object value) {
+            HydrationScanner.this.visit(name, value);
+        }
+
+        @Override
+        public AnnotationVisitor visitAnnotation(String name, String desc) {
+            return HydrationScanner.this.visitAnnotation(desc, false);
+        }
+
+        @Override
+        public AnnotationVisitor visitArray(String name) {
+            return HydrationScanner.this.visitArray(name);
+        }
+
+        @Override
+        public void visitEnum(String name, String desc, String value) {
+            HydrationScanner.this.visitEnum(name, desc, value);
+        }
+
+        @Override
+        public void visitEnd() {
+            //do nothing
+        }
     }
 
 }

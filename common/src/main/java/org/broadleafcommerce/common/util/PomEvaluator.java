@@ -101,6 +101,7 @@ public class PomEvaluator {
         knownLibraries.put("commons-digester", APACHE_FOUNDATION);
         knownLibraries.put("commons-logging", APACHE_FOUNDATION);
         knownLibraries.put("commons-pool", APACHE_FOUNDATION);
+        knownLibraries.put("org.apache.commons", APACHE_FOUNDATION);
         knownLibraries.put("org.apache.geronimo.specs", APACHE_FOUNDATION);
         knownLibraries.put("org.apache.solr", APACHE_FOUNDATION);
         knownLibraries.put("org.apache.velocity", APACHE_FOUNDATION);

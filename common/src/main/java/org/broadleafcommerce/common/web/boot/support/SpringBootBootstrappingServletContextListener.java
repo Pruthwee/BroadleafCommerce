@@ -25,10 +25,6 @@ import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
@@ -98,7 +94,7 @@ public class SpringBootBootstrappingServletContextListener implements ServletCon
                     }
                 };
             }
-        } catch (ServletException | ClassNotFoundException | LinkageError | PrivilegedActionException e) {
+        } catch (ServletException | ClassNotFoundException | LinkageError e) {
             throw new RuntimeException(e);
         }
     }
@@ -124,17 +120,8 @@ public class SpringBootBootstrappingServletContextListener implements ServletCon
         return (Class<WebApplicationInitializer>) initializerClass;
     }
 
-    protected WebApplicationInitializer createInitializer(final Class<WebApplicationInitializer> initializerClass) throws PrivilegedActionException {
-        if (System.getSecurityManager() != null) {
-            return AccessController.doPrivileged(new PrivilegedAction<WebApplicationInitializer>() {
-                @Override
-                public WebApplicationInitializer run() {
-                    return BeanUtils.instantiateClass(initializerClass);
-                }
-            }, AccessController.getContext());
-        } else {
-            return BeanUtils.instantiate(initializerClass);
-        }
+    protected WebApplicationInitializer createInitializer(final Class<WebApplicationInitializer> initializerClass) {
+        return BeanUtils.instantiateClass(initializerClass);
     }
 
 }
