@@ -771,7 +771,7 @@ public class DynamicEntityDaoImpl implements DynamicEntityDao, ApplicationContex
 
         String digest;
         try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] messageDigest = md.digest(sb.toString().getBytes());
             BigInteger number = new BigInteger(1, messageDigest);
             digest = number.toString(16);
@@ -779,7 +779,7 @@ public class DynamicEntityDaoImpl implements DynamicEntityDao, ApplicationContex
             throw new RuntimeException(e);
         }
 
-        String key = pad(digest, 32, '0');
+        String key = pad(digest, 64, '0');
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("Created cache key: " + key + " from the following string: " + sb.toString());
