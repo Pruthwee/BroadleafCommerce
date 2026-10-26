@@ -25,6 +25,10 @@ import org.broadleafcommerce.common.web.BroadleafRequestContext;
 import java.text.DateFormatSymbols;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -42,10 +46,12 @@ public class BLCDateUtils {
     private static final Log LOG = LogFactory.getLog(BLCDateUtils.class);
 
     public static String convertDateToUTC(Date date) {
+        // Use java.time API with UTC (cr-java-0111)
+        Clock utcClock = Clock.system(ZoneOffset.UTC);
+        ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
         SimpleDateFormat dateFormat = new SimpleDateFormat(DEFAULT_DATE_FORMAT);
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-        return dateFormat.format(date);
+        return dateFormat.format(Date.from(zonedDateTime.toInstant()));
     }
 
     public static String formatDateAsString(Date date) {

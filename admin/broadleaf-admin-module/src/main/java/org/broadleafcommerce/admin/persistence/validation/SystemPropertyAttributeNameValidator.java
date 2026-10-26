@@ -49,7 +49,9 @@ public class SystemPropertyAttributeNameValidator extends ValidationConfiguratio
 
     protected static final Log LOG = LogFactory.getLog(SystemPropertyAttributeNameValidator.class);
 
-    private static final List<String> reservedKeywords = new ArrayList(Arrays.asList("not", "and", "or", "gt", "lt", "ge", "le", "eq", "ne"));
+    // Use bounded collection to prevent unbounded growth (cr-java-0096: Unbounded Collections)
+    private static final List<String> reservedKeywords = java.util.Collections.unmodifiableList(
+            new ArrayList<>(Arrays.asList("not", "and", "or", "gt", "lt", "ge", "le", "eq", "ne")));
     private static final String RESERVED_WORD_ERROR_MESSAGE = "SystemPropertyImpl_name_reservedWordError";
     private static final String DISALLOWED_CHARACTERS_ERROR_MESSAGE = "SystemPropertyImpl_name_disallowedCharactersError";
 

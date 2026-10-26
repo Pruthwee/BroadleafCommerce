@@ -1383,6 +1383,10 @@ BLC.defaultErrorHandler = function(data) {
                 BLCAdmin.showMessageAsModal(BLCAdmin.messages.error, BLCAdmin.messages.errorOccurred);
             }
         } catch (e) {
+            // Structured logging to CloudWatch (cr-js-0068)
+            if (typeof console !== 'undefined' && console.error) {
+                console.error("Error processing AJAX response", { error: e.message, status: data.status });
+            }
             $data = data.responseJSON;
             if ($data !== undefined && $data.error) {
                 BLCAdmin.showMessageAsModal(BLCAdmin.messages.error, $data.error);

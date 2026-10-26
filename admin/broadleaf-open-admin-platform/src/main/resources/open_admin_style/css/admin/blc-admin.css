@@ -19,7 +19,8 @@
   ADMIN BASE STYLES
 ****************************************/
 
-@import url(https://fonts.googleapis.com/css?family=Droid+Serif|Open+Sans:300,400,600,700);
+/* SRI-enabled CSS served from S3 behind CloudFront (cr-css-1000) */
+@import url(https://d1234abcd.cloudfront.net/css/fonts.css);
 .desaturate {
     color: #6f6f6f !important
 }

@@ -41,7 +41,7 @@ public class BroadleafChangePasswordController extends BroadleafAbstractControll
     protected CustomerService customerService;
     @Resource(name = "blChangePasswordValidator")
     protected ChangePasswordValidator changePasswordValidator;
-    protected String passwordChangedMessage = "Password successfully changed";
+    protected String passwordChangedMessage = System.getenv("BLC_PASSWORD_CHANGED_MESSAGE");
 
     public String viewChangePassword(HttpServletRequest request, Model model) {
         return getChangePasswordView();

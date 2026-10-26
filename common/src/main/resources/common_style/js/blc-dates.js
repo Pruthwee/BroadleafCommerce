@@ -57,8 +57,10 @@
                     }
                 }
             } catch (e) {
-                // error from formatting or parsing the date
-                console.log(JSON.stringify(e))
+                // Structured logging to CloudWatch (cr-js-0068)
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error("Error formatting or parsing date", { error: JSON.stringify(e) });
+                }
                 return serverDate;
             }
             
@@ -94,8 +96,10 @@
                     };
                 }
             } catch (e) {
-                // We have an error formatting or parsing the date
-                console.log(JSON.stringify(e))
+                // Structured logging to CloudWatch (cr-js-0068)
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error("Error formatting or parsing date", { error: JSON.stringify(e) });
+                }
                 return displayDate;
                 
             }

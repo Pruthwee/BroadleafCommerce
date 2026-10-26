@@ -335,9 +335,12 @@
             }
             alertTarget.append($alert);
 
-            setTimeout(function () {
+            // Refactored callback to async/await pattern (cr-js-0021)
+            const fadeOutAlert = async () => {
+                await new Promise(resolve => setTimeout(resolve, autoClose));
                 $alert.fadeOut();
-            }, autoClose);
+            };
+            fadeOutAlert();
         },
 
         fixHelper: function (e, ui) {

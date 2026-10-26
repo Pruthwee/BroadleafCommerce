@@ -33,8 +33,28 @@ import org.broadleafcommerce.common.web.BroadleafRequestContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
+
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,10 +78,14 @@ public class FileSystemFileServiceProvider implements FileServiceProvider {
     protected String fileSystemBaseDirectory;
     @Value("${asset.server.max.generated.file.system.directories}")
     protected int maxGeneratedDirectoryDepth;
+    @Value("${aws.s3.bucket.name:}")
+    protected String s3BucketName;
     @Resource(name = "blBroadleafFileServiceExtensionManager")
     protected BroadleafFileServiceExtensionManager extensionManager;
     // Allows for small errors in the configuration (e.g. no trailing slash or whitespace).
     protected String baseDirectory;
+    // Lazy S3 client - built on first use, never in static initializer
+    protected S3Client s3Client;
 
     @Override
     public File getResource(String url) {
@@ -78,11 +102,26 @@ public class FileSystemFileServiceProvider implements FileServiceProvider {
                     baseDirectory, fileName, holder
             );
             if (!ExtensionResultStatusType.NOT_HANDLED.equals(result)) {
+                // Try S3 first if bucket is configured; fall back to local file system
+                if (StringUtils.isNotBlank(s3BucketName)) {
+                    File s3File = downloadFromS3(holder.getResult());
+                    if (s3File != null) {
+                        return s3File;
+                    }
+                }
                 return new File(holder.getResult());
             }
         }
         String filePath = FilenameUtils.normalize(getBaseDirectory(false) + File.separator + fileName);
-        return new File(filePath);
+        File localFile = new File(filePath);
+        // Try S3 first if bucket is configured; fall back to local file system
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            File s3File = downloadFromS3(FilenameUtils.separatorsToUnix(filePath));
+            if (s3File != null) {
+                return s3File;
+            }
+        }
+        return localFile;
     }
 
     @Override
@@ -118,18 +157,30 @@ public class FileSystemFileServiceProvider implements FileServiceProvider {
             }
 
             try {
-                if (removeFilesFromWorkArea) {
-                    if (destFile.exists()) {
-                        FileUtils.deleteQuietly(destFile);
+                if (StringUtils.isNotBlank(s3BucketName)) {
+                    // Upload to S3 instead of local file system
+                    String s3Key = getBaseDirectory(false) + "/" + resourceName;
+                    uploadToS3(srcFile, s3Key);
+                    if (removeFilesFromWorkArea) {
+                        srcFile.delete();
                     }
-                    FileUtils.moveFile(srcFile, destFile);
+                    result.add(fileName);
                 } else {
-                    FileUtils.copyFile(srcFile, destFile);
+                    if (removeFilesFromWorkArea) {
+                        if (destFile.exists()) {
+                            FileUtils.deleteQuietly(destFile);
+                        }
+                        FileUtils.moveFile(srcFile, destFile);
+                    } else {
+                        FileUtils.copyFile(srcFile, destFile);
+                    }
+                    result.add(fileName);
                 }
-                result.add(fileName);
             } catch (IOException ioe) {
                 throw new FileServiceException("Error copying resource named " + fileName + " from workArea " +
                         workArea.getFilePathLocation() + " to " + resourceName, ioe);
+            } catch (Exception e) {
+                throw new FileServiceException("Error uploading resource named " + fileName + " to S3", e);
             }
         }
         return result;
@@ -142,7 +193,14 @@ public class FileSystemFileServiceProvider implements FileServiceProvider {
                 getBaseDirectory(false) + File.separator + resourceName
         );
         File fileToRemove = new File(filePathToRemove);
-        return fileToRemove.delete();
+        boolean result = fileToRemove.delete();
+        // Also remove from S3 if configured
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            String s3Key = FilenameUtils.separatorsToUnix(filePathToRemove);
+            deleteFromS3(s3Key);
+            result = true;
+        }
+        return result;
     }
 
     /**
@@ -234,6 +292,115 @@ public class FileSystemFileServiceProvider implements FileServiceProvider {
         }
 
         return baseDirectory;
+    }
+
+    protected S3Client getS3Client() {
+        if (s3Client == null) {
+            try {
+                s3Client = S3Client.builder()
+                        .region(Region.of(System.getenv("AWS_REGION")))
+                        .credentialsProvider(DefaultCredentialsProvider.create())
+                        .build();
+            } catch (SdkException e) {
+                LOG.error("Unable to create S3 client", e);
+                throw new FileServiceException("Unable to create S3 client", e);
+            }
+        }
+        return s3Client;
+    }
+
+    protected String getBucketName() {
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            return s3BucketName;
+        }
+        return System.getenv("S3_BUCKET_NAME");
+    }
+
+    protected File downloadFromS3(String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return null;
+        }
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .build();
+
+            ResponseBytes<software.amazon.awssdk.services.s3.model.GetObjectResponse> response =
+                    getS3Client().getObjectAsBytes(getRequest);
+
+            Path tempFile = Files.createTempFile("blc-s3-", ".tmp");
+            try (FileOutputStream fos = new FileOutputStream(tempFile.toFile())) {
+                fos.write(response.asByteArray());
+            }
+            return tempFile.toFile();
+        } catch (NoSuchKeyException e) {
+            return null;
+        } catch (S3Exception e) {
+            LOG.error("Error downloading from S3: " + s3Key, e);
+            throw new FileServiceException("Error downloading from S3", e);
+        } catch (IOException e) {
+            LOG.error("Error writing temp file for S3 download: " + s3Key, e);
+            throw new FileServiceException("Error writing temp file for S3 download", e);
+        }
+    }
+
+    protected void uploadToS3(File file, String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            throw new FileServiceException("S3 bucket name is not configured");
+        }
+        try {
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .contentType("application/octet-stream")
+                    .build();
+
+            getS3Client().putObject(putRequest, RequestBody.fromFile(file.toPath()));
+        } catch (S3Exception e) {
+            LOG.error("Error uploading to S3: " + s3Key, e);
+            throw new FileServiceException("Error uploading to S3", e);
+        }
+    }
+
+    protected void deleteFromS3(String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return;
+        }
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .build();
+
+            getS3Client().deleteObject(deleteRequest);
+        } catch (S3Exception e) {
+            LOG.error("Error deleting from S3: " + s3Key, e);
+            throw new FileServiceException("Error deleting from S3", e);
+        }
+    }
+
+    protected List<String> listObjectsFromS3(String prefix) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return new ArrayList<>();
+        }
+        try {
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(getBucketName())
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response response = getS3Client().listObjectsV2(listRequest);
+
+            List<String> result = new ArrayList<>();
+            for (S3Object obj : response.contents()) {
+                result.add(obj.key());
+            }
+            return result;
+        } catch (S3Exception e) {
+            LOG.error("Error listing objects from S3 with prefix: " + prefix, e);
+            return new ArrayList<>();
+        }
     }
 
 }

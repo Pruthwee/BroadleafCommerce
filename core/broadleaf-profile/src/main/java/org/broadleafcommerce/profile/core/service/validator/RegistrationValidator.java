@@ -30,7 +30,7 @@ public class RegistrationValidator implements Validator {
 
     private static final String DEFAULT_VALID_NAME_REGEX = "[A-Za-z'. -]{1,80}";
 
-    private static final String DEFAULT_VALID_PASSWORD_REGEX = "[^\\s]{6,}";
+    private static final String DEFAULT_VALID_PASSWORD_REGEX = System.getenv("BLC_PASSWORD_VALID_REGEX");
 
     public static String getValidNameRegex() {
         return BLCSystemProperty.resolveSystemProperty("name.valid.regex", DEFAULT_VALID_NAME_REGEX);

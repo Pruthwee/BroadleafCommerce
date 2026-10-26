@@ -37,11 +37,30 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 
 import jakarta.annotation.Resource;
 
@@ -81,6 +100,12 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
 
     @Value("${asset.server.file.classpath.directory}")
     protected String fileServiceClasspathDirectory;
+
+    @Value("${aws.s3.bucket.name:}")
+    protected String s3BucketName;
+
+    // Lazy S3 client - built on first use, never in static initializer
+    protected S3Client s3Client;
 
     @Resource(name = "blBroadleafFileServiceExtensionManager")
     protected BroadleafFileServiceExtensionManager extensionManager;
@@ -126,7 +151,7 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
 
         for (int i = 0; i < maxGeneratedDirectoryDepth; i++) {
             tempDirectory = tempDirectory.getParentFile();
-            if (!tempDirectory.delete()) {
+            if (tempDirectory == null || !tempDirectory.delete()) {
                 break;
             }
         }
@@ -143,7 +168,18 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
             // convert the separators to the system this is currently run on
             String systemResourcePath = FilenameUtils.separatorsToSystem(resourceName);
             String filePath = FilenameUtils.normalize(baseDirectory + File.separator + systemResourcePath);
-            return new File(filePath);
+            // Try S3 first if bucket is configured; fall back to local file system
+            File localFile = new File(filePath);
+            if (StringUtils.isNotBlank(s3BucketName) && localFile.exists()) {
+                return localFile;
+            }
+            if (StringUtils.isNotBlank(s3BucketName)) {
+                File s3File = downloadFromS3(buildS3Key(resourceName, skipSite));
+                if (s3File != null) {
+                    return s3File;
+                }
+            }
+            return localFile;
         } else {
             String baseDirectory = getBaseDirectory(true);
             ExtensionResultHolder<String> holder = new ExtensionResultHolder<>();
@@ -152,7 +188,18 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
                         baseDirectory, resourceName, holder
                 );
                 if (!ExtensionResultStatusType.NOT_HANDLED.equals(result)) {
-                    return new File(holder.getResult());
+                    // Try S3 first if bucket is configured; fall back to local file system
+                    File localFile = new File(holder.getResult());
+                    if (StringUtils.isNotBlank(s3BucketName) && localFile.exists()) {
+                        return localFile;
+                    }
+                    if (StringUtils.isNotBlank(s3BucketName)) {
+                        File s3File = downloadFromS3(buildS3Key(resourceName, false));
+                        if (s3File != null) {
+                            return s3File;
+                        }
+                    }
+                    return localFile;
                 }
             }
             return getLocalResource(resourceName, true);
@@ -248,6 +295,10 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
         //Second, try to remove any matching assets that are cached in a site specific directory
         baseDirectory = getBaseDirectory(false);
         removeLocalCacheFiles(resourceName, baseDirectory);
+        //Third, remove from S3 if configured
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            deleteFromS3(buildS3Key(resourceName, true));
+        }
         return response;
     }
 
@@ -297,6 +348,25 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
             boolean removeFilesFromWorkArea
     ) {
         checkFiles(workArea, files);
+        // Upload to S3 if bucket is configured, otherwise delegate to file service provider
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            List<String> result = new ArrayList<>();
+            for (File srcFile : files) {
+                String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
+                String url = FilenameUtils.separatorsToUnix(fileName);
+                String s3Key = buildS3Key(url, false);
+                try {
+                    uploadToS3(srcFile, s3Key);
+                    result.add(fileName);
+                    if (removeFilesFromWorkArea) {
+                        srcFile.delete();
+                    }
+                } catch (Exception e) {
+                    throw new FileServiceException("Error uploading resource named " + fileName + " to S3", e);
+                }
+            }
+            return result;
+        }
         return selectFileServiceProvider().addOrUpdateResourcesForPaths(workArea, files, removeFilesFromWorkArea);
     }
 
@@ -309,15 +379,26 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
         filePath += "---";
         final String checkPath = filePath;
         File dir = new File(baseDirectory);
-        File[] children = dir.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File pathname) {
-                String name = pathname.getAbsolutePath();
-                return name.startsWith(checkPath);
+        if (dir.exists()) {
+            File[] children = dir.listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File pathname) {
+                    String name = pathname.getAbsolutePath();
+                    return name.startsWith(checkPath);
+                }
+            });
+            if (children != null) {
+                for (File cache : children) {
+                    FileUtils.deleteQuietly(cache);
+                }
             }
-        });
-        for (File cache : children) {
-            FileUtils.deleteQuietly(cache);
+        }
+        // Also remove from S3 if configured
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            List<String> s3Keys = listObjectsFromS3(buildS3Key(resourceName, true));
+            for (String key : s3Keys) {
+                deleteFromS3(key);
+            }
         }
     }
 
@@ -406,19 +487,31 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
      * @param fileList
      */
     protected void buildFileList(File file, Collection<File> fileList) {
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    if (child.isDirectory()) {
-                        buildFileList(child, fileList);
-                    } else {
-                        fileList.add(child);
-                    }
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            // Use S3 listing instead of local directory scanning
+            String prefix = file.getAbsolutePath();
+            List<String> s3Keys = listObjectsFromS3(prefix);
+            for (String key : s3Keys) {
+                File s3File = downloadFromS3(key);
+                if (s3File != null) {
+                    fileList.add(s3File);
                 }
             }
         } else {
-            fileList.add(file);
+            if (file.isDirectory()) {
+                File[] children = file.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory()) {
+                            buildFileList(child, fileList);
+                        } else {
+                            fileList.add(child);
+                        }
+                    }
+                }
+            } else {
+                fileList.add(file);
+            }
         }
     }
 
@@ -452,6 +545,121 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
 
     public void setDefaultFileServiceProvider(FileServiceProvider defaultFileServiceProvider) {
         this.defaultFileServiceProvider = defaultFileServiceProvider;
+    }
+
+    protected S3Client getS3Client() {
+        if (s3Client == null) {
+            try {
+                s3Client = S3Client.builder()
+                        .region(Region.of(System.getenv("AWS_REGION")))
+                        .credentialsProvider(DefaultCredentialsProvider.create())
+                        .build();
+            } catch (SdkException e) {
+                LOG.error("Unable to create S3 client", e);
+                throw new FileServiceException("Unable to create S3 client", e);
+            }
+        }
+        return s3Client;
+    }
+
+    protected String getBucketName() {
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            return s3BucketName;
+        }
+        return System.getenv("S3_BUCKET_NAME");
+    }
+
+    protected String buildS3Key(String resourceName, boolean skipSite) {
+        String baseDirectory = getBaseDirectory(skipSite);
+        String systemResourcePath = FilenameUtils.separatorsToUnix(resourceName);
+        return FilenameUtils.normalize(baseDirectory + "/" + systemResourcePath);
+    }
+
+    protected File downloadFromS3(String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return null;
+        }
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .build();
+
+            ResponseBytes<software.amazon.awssdk.services.s3.model.GetObjectResponse> response =
+                    getS3Client().getObjectAsBytes(getRequest);
+
+            java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("blc-s3-", ".tmp");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile.toFile())) {
+                fos.write(response.asByteArray());
+            }
+            return tempFile.toFile();
+        } catch (NoSuchKeyException e) {
+            return null;
+        } catch (S3Exception e) {
+            LOG.error("Error downloading from S3: " + s3Key, e);
+            throw new FileServiceException("Error downloading from S3", e);
+        } catch (IOException e) {
+            LOG.error("Error writing temp file for S3 download: " + s3Key, e);
+            throw new FileServiceException("Error writing temp file for S3 download", e);
+        }
+    }
+
+    protected void uploadToS3(File file, String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            throw new FileServiceException("S3 bucket name is not configured");
+        }
+        try {
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .contentType("application/octet-stream")
+                    .build();
+
+            getS3Client().putObject(putRequest, RequestBody.fromFile(file.toPath()));
+        } catch (S3Exception e) {
+            LOG.error("Error uploading to S3: " + s3Key, e);
+            throw new FileServiceException("Error uploading to S3", e);
+        }
+    }
+
+    protected void deleteFromS3(String s3Key) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return;
+        }
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(getBucketName())
+                    .key(s3Key)
+                    .build();
+
+            getS3Client().deleteObject(deleteRequest);
+        } catch (S3Exception e) {
+            LOG.error("Error deleting from S3: " + s3Key, e);
+            throw new FileServiceException("Error deleting from S3", e);
+        }
+    }
+
+    protected List<String> listObjectsFromS3(String prefix) {
+        if (StringUtils.isBlank(getBucketName())) {
+            return new ArrayList<>();
+        }
+        try {
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(getBucketName())
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response response = getS3Client().listObjectsV2(listRequest);
+
+            List<String> result = new ArrayList<>();
+            for (S3Object obj : response.contents()) {
+                result.add(obj.key());
+            }
+            return result;
+        } catch (S3Exception e) {
+            LOG.error("Error listing objects from S3 with prefix: " + prefix, e);
+            return new ArrayList<>();
+        }
     }
 
 }

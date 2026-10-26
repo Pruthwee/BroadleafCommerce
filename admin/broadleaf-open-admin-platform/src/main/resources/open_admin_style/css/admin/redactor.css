@@ -125,7 +125,7 @@ body .redactor-box-fullscreen {
   position: absolute;
   top: 20px;
   left: 20px;
-  content: attr(placeholder);
+  content: attr(data-placeholder);
   display: block;
   /* For Firefox */
   color: #999 !important;

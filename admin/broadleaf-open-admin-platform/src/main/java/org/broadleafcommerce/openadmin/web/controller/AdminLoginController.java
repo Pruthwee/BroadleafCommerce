@@ -57,7 +57,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Controller("blAdminLoginController")
 public class AdminLoginController extends BroadleafAbstractController {
 
-    private static final String ANONYMOUS_USER_NAME = "anonymousUser";
+    private static final String ANONYMOUS_USER_NAME = System.getenv("BLC_ANONYMOUS_USER_NAME");
     // Entry URLs
     protected static String loginView = "login/login";
     protected static String forgotPasswordView = "login/forgotPassword";

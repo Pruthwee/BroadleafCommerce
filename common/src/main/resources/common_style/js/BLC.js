@@ -108,7 +108,10 @@ var BLC = (function($) {
     	    try {
     	        extractedData = $.parseJSON($dataDiv.text());
     	    } catch (e) {
-    	        console.log("Could not parse data as JSON: " + $dataDiv.text());
+    	        // Structured logging to CloudWatch (cr-js-0068)
+    	        if (typeof console !== 'undefined' && console.error) {
+    	            console.error("Error parsing JSON data", { error: e.message, data: $dataDiv.text() });
+    	        }
     	    }
 	        $dataDiv.remove();
     	}

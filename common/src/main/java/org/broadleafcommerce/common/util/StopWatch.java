@@ -19,6 +19,10 @@ package org.broadleafcommerce.common.util;
 
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.util.TimeZone;
+
 /**
  * @author Andre Azzolini (apazzolini)
  */
@@ -31,6 +35,9 @@ public class StopWatch {
 
     private static final int STATE_UNSPLIT = 10;
     private static final int STATE_SPLIT = 11;
+
+    // Use UTC clock for consistent time across all services (cr-java-0111)
+    private static final Clock CLOCK = Clock.system(ZoneOffset.UTC);
 
     private int runningState = STATE_UNSTARTED;
     private int splitState = STATE_UNSPLIT;
@@ -51,7 +58,7 @@ public class StopWatch {
             throw new IllegalStateException("Stopwatch already started. ");
         }
         this.stopTime = -1;
-        this.startTime = System.currentTimeMillis();
+        this.startTime = CLOCK.millis();
         this.runningState = STATE_RUNNING;
         return this;
     }
@@ -118,7 +125,7 @@ public class StopWatch {
         } else if (this.runningState == STATE_UNSTARTED) {
             return 0;
         } else if (this.runningState == STATE_RUNNING) {
-            return System.currentTimeMillis() - this.startTime;
+            return CLOCK.millis() - this.startTime;
         }
         throw new RuntimeException("Illegal running state has occured. ");
     }
@@ -134,7 +141,7 @@ public class StopWatch {
         if (this.splitState != STATE_SPLIT) {
             throw new IllegalStateException("Stopwatch must be split to get the lap time. ");
         }
-        return System.currentTimeMillis() - this.stopTime;
+        return CLOCK.millis() - this.stopTime;
     }
 
     public long getStartTime() {

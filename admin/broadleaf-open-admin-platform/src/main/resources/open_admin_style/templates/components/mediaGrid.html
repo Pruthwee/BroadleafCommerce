@@ -83,6 +83,13 @@
             </div>
         </div>
         <div class="asset-listgrid-wrapper" style="display: none;">
+            <!-- SSR skeleton screen placeholder (cr-html-1008) -->
+            <div class="skeleton-grid" aria-busy="true" aria-label="Loading assets">
+                <div class="skeleton-card" th:each="i : ${#numbers.sequence(1, 4)}">
+                    <div class="skeleton skeleton-image"></div>
+                    <div class="skeleton skeleton-title"></div>
+                </div>
+            </div>
             <div class="asset-listgrid listgrid-container"  th:insert="~{components/mediaListGrid}" th:with="listGrid=${listGrid}"></div>
         </div>
     </div>

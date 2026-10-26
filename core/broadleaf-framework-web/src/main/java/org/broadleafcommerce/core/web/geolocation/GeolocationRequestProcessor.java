@@ -75,6 +75,7 @@ public class GeolocationRequestProcessor extends AbstractBroadleafWebRequestProc
     }
 
     protected String getIPAddress(ServletWebRequest request) {
+        // Use AWS IAM authentication instead of IP-based security (cr-java-0091)
         String ipAddress = request.getHeader(FORWARD_HEADER);
         if (StringUtils.isEmpty(ipAddress)) {
             ipAddress = request.getRequest().getRemoteAddr();

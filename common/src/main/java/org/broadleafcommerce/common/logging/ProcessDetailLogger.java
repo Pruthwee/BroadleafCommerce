@@ -148,7 +148,7 @@ public class ProcessDetailLogger {
                         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                         "<configuration>\n" +
                         "<include resource=\"org/springframework/boot/logging/logback/defaults.xml\" />\n" +
-                        "<property name=\"LOG_FILE\" value=\"${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}spring.log}\"/>\n" +
+                        "<property name=\"LOG_FILE\" value=\"${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir}}/}spring.log}\"/>\n" +
                         "<include resource=\"org/springframework/boot/logging/logback/console-appender.xml\" />\n" +
                         "<include resource=\"org/springframework/boot/logging/logback/file-appender.xml\" />\n" +
                         "<root level=\"INFO\">\n" +

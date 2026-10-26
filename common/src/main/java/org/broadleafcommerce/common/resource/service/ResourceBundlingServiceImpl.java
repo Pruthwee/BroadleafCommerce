@@ -438,7 +438,24 @@ public class ResourceBundlingServiceImpl implements ResourceBundlingService {
 
     protected Resource readBundle(String versionedBundleName) {
         File bundleFile = fileService.getResource("/" + getResourcePath(versionedBundleName));
-        return bundleFile == null ? null : new FileSystemResource(bundleFile);
+        if (bundleFile == null) {
+            return null;
+        }
+        try {
+            return new FileSystemResource(bundleFile);
+        } finally {
+            // Clean up temp file downloaded from S3
+            if (bundleFile != null) {
+                String path = bundleFile.getAbsolutePath();
+                if (path.contains("blc-s3-")) {
+                    try {
+                        java.nio.file.Files.deleteIfExists(bundleFile.toPath());
+                    } catch (IOException e) {
+                        LOG.warn("Could not delete temp file: " + path, e);
+                    }
+                }
+            }
+        }
     }
 
     protected ResourceHttpRequestHandler findResourceHttpRequestHandler(String resourceName) {

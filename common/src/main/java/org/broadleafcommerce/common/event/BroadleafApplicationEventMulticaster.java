@@ -17,15 +17,25 @@
  */
 package org.broadleafcommerce.common.event;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.SimpleApplicationEventMulticaster;
 import org.springframework.core.ResolvableType;
+
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.PublishRequest;
+import software.amazon.awssdk.services.sns.model.SnsException;
 
 import java.util.concurrent.Executor;
 
@@ -37,15 +47,25 @@ import java.util.concurrent.Executor;
  * Asynchronous execution should be used with care.  Events are not durable with this implementation.
  * In addition, this implementation does not broadcast or multicast events to systems outside of the
  * running JVM, although an event listener could be configured to do just that.
+ * <p>
+ * In cloud deployments, IP multicast is replaced with Amazon SNS fan-out for event broadcasting (cr-java-0080).
  *
  * @author Kelly Tisdell
  */
 public class BroadleafApplicationEventMulticaster extends SimpleApplicationEventMulticaster implements ApplicationContextAware {
 
+    private static final Log LOG = LogFactory.getLog(BroadleafApplicationEventMulticaster.class);
+
     protected ApplicationContext ctx;
     @Autowired(required = false)
     @Qualifier("blApplicationEventMulticastTaskExecutor")
     private Executor taskExecutor;
+
+    @Value("${aws.sns.topic.arn:}")
+    protected String snsTopicArn;
+
+    // Lazy SNS client - built on first use, never in static initializer
+    protected SnsClient snsClient;
 
     /**
      * Take care when specifying that event or application listener should be executed asynchronously.
@@ -79,6 +99,37 @@ public class BroadleafApplicationEventMulticaster extends SimpleApplicationEvent
                 invokeListener(listener, event);
             }
         }
+        // Also publish to SNS for cloud fan-out (cr-java-0080: Replace IP multicast with Amazon SNS fan-out)
+        if (snsTopicArn != null && !snsTopicArn.isEmpty()) {
+            publishToSns(event);
+        }
+    }
+
+    protected void publishToSns(ApplicationEvent event) {
+        try {
+            String message = event.getClass().getName() + ":" + event.toString();
+            PublishRequest request = PublishRequest.builder()
+                    .topicArn(snsTopicArn)
+                    .message(message)
+                    .build();
+            getSnsClient().publish(request);
+        } catch (SnsException e) {
+            LOG.warn("Error publishing event to SNS", e);
+        }
+    }
+
+    protected SnsClient getSnsClient() {
+        if (snsClient == null) {
+            try {
+                snsClient = SnsClient.builder()
+                        .region(Region.of(System.getenv("AWS_REGION")))
+                        .credentialsProvider(DefaultCredentialsProvider.create())
+                        .build();
+            } catch (SdkException e) {
+                LOG.error("Unable to create SNS client", e);
+            }
+        }
+        return snsClient;
     }
 
     @Override

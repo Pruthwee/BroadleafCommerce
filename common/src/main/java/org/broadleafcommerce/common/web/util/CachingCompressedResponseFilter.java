@@ -319,9 +319,9 @@ public class CachingCompressedResponseFilter extends AbstractIgnorableOncePerReq
         chain.doFilter(request, wrapper);
         wrapper.closeFileOutputStream();
         File compressedFile = File.createTempFile(tempRoot, ".tmpgz");
-        OutputStream compressedOut = new GZIPOutputStream(new FileOutputStream(compressedFile));
-        StreamUtils.copy(new BufferedInputStream(new FileInputStream(tempFile)), compressedOut);
-        IOUtils.closeQuietly(compressedOut);
+        try (OutputStream compressedOut = new GZIPOutputStream(new FileOutputStream(compressedFile))) {
+            StreamUtils.copy(new BufferedInputStream(new FileInputStream(tempFile)), compressedOut);
+        }
         tempFile.delete();
         atomicMove.replaceExisting(compressedFile, targetFile);
     }

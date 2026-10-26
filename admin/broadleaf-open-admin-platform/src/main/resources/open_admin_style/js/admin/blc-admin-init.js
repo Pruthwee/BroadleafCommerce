@@ -56,9 +56,11 @@
     // Hide address bar on mobile devices (except if #hash present, so we don't mess up deep linking).
     if (Modernizr.touch && !window.location.hash) {
         $(window).on('load', function () {
-            setTimeout(function () {
+            // Refactored callback to async/await pattern (cr-js-0021)
+            (async () => {
+                await new Promise(resolve => setTimeout(resolve, 0));
                 window.scrollTo(0, 1);
-            }, 0);
+            })();
         });
     }
   

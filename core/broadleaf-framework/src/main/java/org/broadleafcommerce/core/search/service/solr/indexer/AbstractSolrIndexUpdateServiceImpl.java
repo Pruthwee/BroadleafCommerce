@@ -35,6 +35,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
@@ -54,7 +56,7 @@ import java.util.concurrent.locks.Lock;
 public abstract class AbstractSolrIndexUpdateServiceImpl implements SolrIndexUpdateService, DisposableBean {
 
     private static final Log LOG = LogFactory.getLog(AbstractSolrIndexUpdateServiceImpl.class);
-    private static final Map<String, AtomicReferenceArray<Runnable>> commandThreadRegistry = Collections.synchronizedMap(new HashMap<>());
+    private static final Map<String, AtomicReferenceArray<Object>> commandThreadRegistry = Collections.synchronizedMap(new HashMap<>());
 
     private final String commandGroup;
     private BlockingQueue<? super SolrUpdateCommand> commandQueue;
@@ -88,12 +90,17 @@ public abstract class AbstractSolrIndexUpdateServiceImpl implements SolrIndexUpd
                 Assert.notNull(lock, "The lock cannot be null. Check the " + queueProvider.getClass().getName() + ".");
 
                 final CommandCoordinator commandRunnable = new CommandCoordinator(this.commandQueue, lock, commandHandler);
-                final Thread commandThread = new Thread(commandRunnable, getCommandGroup() + "-Solr-Index-Update-Command-Master");
-                commandThread.start();
+                // Use managed ExecutorService instead of unbounded thread creation (cr-java-0081)
+                ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, getCommandGroup() + "-Solr-Index-Update-Command-Master");
+                    t.setDaemon(false);
+                    return t;
+                });
+                executor.execute(commandRunnable);
 
-                AtomicReferenceArray<Runnable> ref = new AtomicReferenceArray<>(2);
+                AtomicReferenceArray<Object> ref = new AtomicReferenceArray<>(2);
                 ref.set(0, commandRunnable);
-                ref.set(1, commandThread);
+                ref.set(1, executor);
 
                 commandThreadRegistry.put(getCommandGroup(), ref);
             } else {
@@ -105,10 +112,14 @@ public abstract class AbstractSolrIndexUpdateServiceImpl implements SolrIndexUpd
     @Override
     public void destroy() throws Exception {
         synchronized (AbstractSolrIndexUpdateServiceImpl.class) {
-            AtomicReferenceArray<Runnable> runnables = commandThreadRegistry.remove(getCommandGroup());
+            AtomicReferenceArray<Object> runnables = commandThreadRegistry.remove(getCommandGroup());
             if (runnables != null) {
                 ((CommandCoordinator) runnables.get(0)).stopRunning();
-                ((Thread) runnables.get(1)).interrupt();
+                if (runnables.get(1) instanceof ExecutorService) {
+                    ((ExecutorService) runnables.get(1)).shutdownNow();
+                } else if (runnables.get(1) instanceof Thread) {
+                    ((Thread) runnables.get(1)).interrupt();
+                }
             }
         }
     }
@@ -118,10 +129,14 @@ public abstract class AbstractSolrIndexUpdateServiceImpl implements SolrIndexUpd
      */
     public static void shutdownAll() {
         synchronized (AbstractSolrIndexUpdateServiceImpl.class) {
-            Set<Entry<String, AtomicReferenceArray<Runnable>>> entries = commandThreadRegistry.entrySet();
-            for (Entry<String, AtomicReferenceArray<Runnable>> entry : entries) {
+            Set<Entry<String, AtomicReferenceArray<Object>>> entries = commandThreadRegistry.entrySet();
+            for (Entry<String, AtomicReferenceArray<Object>> entry : entries) {
                 ((CommandCoordinator) entry.getValue().get(0)).stopRunning();
-                ((Thread) entry.getValue().get(1)).interrupt();
+                if (entry.getValue().get(1) instanceof ExecutorService) {
+                    ((ExecutorService) entry.getValue().get(1)).shutdownNow();
+                } else if (entry.getValue().get(1) instanceof Thread) {
+                    ((Thread) entry.getValue().get(1)).interrupt();
+                }
             }
 
             commandThreadRegistry.clear();

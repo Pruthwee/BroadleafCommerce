@@ -1,4 +1,16 @@
 <header class="site-bar">
+<!-- Content-Security-Policy meta tag (cr-html-1003) -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' https://cdn.jsdelivr.net;
+               style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+               img-src 'self' data: https:;
+               font-src 'self' https://fonts.gstatic.com;
+               connect-src 'self' https://api.myapp.com;
+               frame-ancestors 'none';
+               base-uri 'self';
+               form-action 'self';
+               upgrade-insecure-requests;" />
 
     <li th:replace="~{layout/partials/additionalHeaderMenu}" ></li>
 

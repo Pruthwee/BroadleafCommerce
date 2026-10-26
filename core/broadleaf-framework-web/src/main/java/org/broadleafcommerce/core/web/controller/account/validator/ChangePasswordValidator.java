@@ -32,7 +32,7 @@ import jakarta.annotation.Resource;
 @Component("blChangePasswordValidator")
 public class ChangePasswordValidator implements Validator {
 
-    private static final String DEFAULT_VALID_PASSWORD_REGEX = "[^\\s]{6,}";
+    private static final String DEFAULT_VALID_PASSWORD_REGEX = System.getenv("BLC_PASSWORD_VALID_REGEX");
 
     @Resource(name = "blCustomerService")
     protected CustomerService customerService;

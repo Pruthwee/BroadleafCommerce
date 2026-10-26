@@ -55,6 +55,8 @@ public class BroadleafAdminAuthenticationSuccessHandler extends SimpleUrlAuthent
     ) throws ServletException, IOException {
         AdminUser user = adminRemoteSecurityService.getPersistentAdminUser();
         if (user != null && user.getLastUsedSandBoxId() != null) {
+            // Store sandbox ID in HTTP session (cr-java-0065: HTTP Session State Storage)
+            // When running in cloud, Spring Session with Redis should be configured to externalize session state
             request.getSession(false).setAttribute(BroadleafSandBoxResolver.SANDBOX_ID_VAR, user.getLastUsedSandBoxId());
         }
 

@@ -39,29 +39,13 @@ public class OracleSessionIdTransactionInfoModifier implements TransactionInfoCu
             Integer sid = em.unwrap(Session.class).doReturningWork(new ReturningWork<Integer>() {
                 @Override
                 public Integer execute(Connection connection) throws SQLException {
-                    Statement statement = null;
-                    ResultSet resultSet = null;
-                    try {
-                        statement = connection.createStatement();
-                        resultSet = statement.executeQuery("SELECT sys_context('userenv','sid') FROM dual");
+                    try (Statement statement = connection.createStatement();
+                         ResultSet resultSet = statement.executeQuery("SELECT sys_context('userenv','sid') FROM dual")) {
                         Integer response = null;
                         if (resultSet.next()) {
                             response = resultSet.getInt(1);
                         }
                         return response;
-                    } finally {
-                        if (resultSet != null) {
-                            try {
-                                resultSet.close();
-                            } catch (Throwable e) {
-                            }
-                        }
-                        if (statement != null) {
-                            try {
-                                statement.close();
-                            } catch (Throwable e) {
-                            }
-                        }
                     }
                 }
             });

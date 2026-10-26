@@ -103,10 +103,10 @@ public class SiteMapBuilder {
             if (!file.exists()) {
                 file.createNewFile();
             }
-            Writer writer = new BufferedWriter(new FileWriter(file.getAbsoluteFile()));
-            writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-            m.marshal(xmlObject, writer);
-            writer.close();
+            try (Writer writer = new BufferedWriter(new FileWriter(file.getAbsoluteFile()))) {
+                writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+                m.marshal(xmlObject, writer);
+            }
         } catch (IOException ioe) {
             LOG.error("IOException occurred persisting XML Document", ioe);
             throw new RuntimeException("Error persisting XML document when trying to build Sitemap", ioe);

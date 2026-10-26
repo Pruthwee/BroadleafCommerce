@@ -290,6 +290,11 @@ public class CatalogSolrIndexUpdateCommandHandlerImpl extends AbstractSolrIndexU
                         if (holder.isFailed()) {
                             break;
                         }
+                        // Check for graceful shutdown (cr-java-0117)
+                        if (Thread.currentThread().isInterrupted()) {
+                            LOG.info("Solr reindex interrupted, shutting down gracefully");
+                            break;
+                        }
 
                         final IdentityOperation<List<Long>, Exception> readIdsOperation = getReadIdsOperation(
                                 holder, catalogId, siteId, batchSize, lastId.get()
@@ -467,8 +472,12 @@ public class CatalogSolrIndexUpdateCommandHandlerImpl extends AbstractSolrIndexU
         ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
         exec.setThreadGroupName(getCommandGroup() + "-solr-reindex-worker");
         exec.setThreadNamePrefix(getCommandGroup() + "-solr-reindex-worker-");
-        exec.setCorePoolSize(getThreadsForBackgroundExecution());
-        exec.setMaxPoolSize(getThreadsForBackgroundExecution());
+        // Dynamic thread pool sizing based on ECS/EKS container resources (cr-java-0082)
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        int corePoolSize = Integer.getInteger("blc.solr.reindex.core.pool.size", Math.max(1, availableProcessors / 2));
+        int maxPoolSize = Integer.getInteger("blc.solr.reindex.max.pool.size", Math.max(1, availableProcessors));
+        exec.setCorePoolSize(corePoolSize);
+        exec.setMaxPoolSize(maxPoolSize);
         exec.initialize();
         return exec;
     }

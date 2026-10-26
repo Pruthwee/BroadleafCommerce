@@ -287,6 +287,17 @@ public class ReentrantDistributedZookeeperLock implements DistributedLock {
         }
 
         initialize();
+
+        // Register shutdown hook for graceful termination in EKS/ECS (cr-java-0117)
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                if (zk != null) {
+                    zk.close();
+                }
+            } catch (Exception e) {
+                LOG.warn("Error closing Zookeeper connection during shutdown", e);
+            }
+        }));
     }
 
     @Override

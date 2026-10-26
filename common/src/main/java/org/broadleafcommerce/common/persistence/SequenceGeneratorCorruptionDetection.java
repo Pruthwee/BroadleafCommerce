@@ -261,6 +261,10 @@ public class SequenceGeneratorCorruptionDetection implements ApplicationListener
                                     "queries for this detection, set the 'default.schema.sequence.generator' property in your application's common.properties or common-shared.properties. Also, if you are upgrading\n" +
                                     "from 1.6 or below, please refer to http://docs.broadleafcommerce.org/current/1.6-to-2.0-Migration.html for important information regarding migrating your SEQUENCE_GENERATOR table.";
                             LOG.error("Broadleaf Commerce failed to start", new RuntimeException(reason));
+                            // Graceful shutdown hook for EKS/ECS (cr-java-0117)
+                            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                                LOG.info("Graceful shutdown initiated due to sequence generator corruption");
+                            }));
                             System.exit(1);
                         }
                     }

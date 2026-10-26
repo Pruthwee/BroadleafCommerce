@@ -834,6 +834,10 @@
                     try {
                        array = Array.isArray(input) ? input : JSON.parse(input);
                     } catch (e) {
+                       // Structured logging to CloudWatch (cr-js-0068)
+                       if (typeof console !== 'undefined' && console.error) {
+                           console.error("Error parsing JSON input in filter builder", { error: e.message, input: input });
+                       }
                        array = input.slice(1, -1).split(',');
                     }
                     input = '';
@@ -1054,6 +1058,10 @@
                         try{
                             ruleVal = Array.isArray(rule.value) ? rule.value : JSON.parse(rule.value);
                         } catch (e) {
+                            // Structured logging to CloudWatch (cr-js-0068)
+                            if (typeof console !== 'undefined' && console.error) {
+                                console.error("Error parsing JSON rule value in filter builder", { error: e.message, value: rule.value });
+                            }
                             ruleVal = rule.value.slice(1, -1).split(',');
                         }
                         var arr = Array.isArray(ruleVal) ? ruleVal : [ruleVal];

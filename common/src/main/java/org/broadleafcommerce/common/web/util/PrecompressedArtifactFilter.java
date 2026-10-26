@@ -64,9 +64,7 @@ public class PrecompressedArtifactFilter extends GenericFilterBean {
                     if (output.exists()) {
                         response.addHeader("Content-Encoding", "gzip");
                         ServletOutputStream sos = servletResponse.getOutputStream();
-                        BufferedInputStream bis = null;
-                        try {
-                            bis = new BufferedInputStream(new FileInputStream(output));
+                        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(output))) {
                             boolean eof = false;
                             while (!eof) {
                                 int temp = bis.read();
@@ -78,13 +76,6 @@ public class PrecompressedArtifactFilter extends GenericFilterBean {
                             }
                         } finally {
                             sos.flush();
-                            try {
-                                if (bis != null) {
-                                    bis.close();
-                                }
-                            } catch (Exception e) {
-                                //do nothing
-                            }
                         }
                         break checkOutput;
                     }

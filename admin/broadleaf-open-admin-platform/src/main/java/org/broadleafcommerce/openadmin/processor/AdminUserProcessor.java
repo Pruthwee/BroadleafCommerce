@@ -37,7 +37,7 @@ import jakarta.annotation.Resource;
 @ConditionalOnTemplating
 public class AdminUserProcessor implements AdminUserExpression {
 
-    private static final String ANONYMOUS_USER_NAME = "anonymousUser";
+    private static final String ANONYMOUS_USER_NAME = System.getenv("BLC_ANONYMOUS_USER_NAME");
 
     @Resource(name = "blAdminSecurityService")
     protected AdminSecurityService securityService;

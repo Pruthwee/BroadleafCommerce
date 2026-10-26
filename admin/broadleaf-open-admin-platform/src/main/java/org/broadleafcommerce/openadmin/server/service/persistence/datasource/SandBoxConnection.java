@@ -68,7 +68,9 @@ public class SandBoxConnection implements Connection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return delegate.createStatement();
+        Statement stmt = delegate.createStatement();
+        stmt.setQueryTimeout(5); // 5 second query timeout
+        return stmt;
     }
 
     @Override

@@ -116,7 +116,11 @@ public class MvelTestUtils {
         StringBuilder buffer = new StringBuilder();
         Enumeration<URL> resources = cl.getResources("META-INF/MANIFEST.MF");
         while (resources.hasMoreElements()) {
-            Manifest manifest = new Manifest(resources.nextElement().openStream());
+            URL url = resources.nextElement();
+            java.net.URLConnection conn = url.openConnection();
+            conn.setConnectTimeout(5000); // 5 second connect timeout
+            conn.setReadTimeout(5000); // 5 second read timeout
+            Manifest manifest = new Manifest(conn.getInputStream());
             Attributes main = manifest.getMainAttributes();
             String mainClass = main.getValue("Main-Class");
             if ("org.apache.maven.surefire.booter.ForkedBooter".equals(mainClass)) {

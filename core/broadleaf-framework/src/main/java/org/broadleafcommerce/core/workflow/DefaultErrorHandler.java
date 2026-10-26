@@ -30,6 +30,7 @@ public class DefaultErrorHandler implements ErrorHandler {
 
     private static final Log LOG = LogFactory.getLog(DefaultErrorHandler.class);
     protected List<String> unloggedExceptionClasses = new ArrayList<>();
+    protected boolean shutdownHookRegistered = false;
     @SuppressWarnings("unused")
     private String name;
 
@@ -57,7 +58,20 @@ public class DefaultErrorHandler implements ErrorHandler {
                     RollbackStateLocal.getRollbackStateLocal().getWorkflowId()), th);
         }
 
+        // Graceful shutdown hook for EKS/ECS (cr-java-0117)
+        registerShutdownHook();
+
         throw new WorkflowException(th);
+    }
+
+    protected void registerShutdownHook() {
+        // Ensure graceful shutdown in EKS/ECS environments
+        if (!shutdownHookRegistered) {
+            shutdownHookRegistered = true;
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                LOG.info("Graceful shutdown initiated for Broadleaf workflow error handler");
+            }));
+        }
     }
 
     /* (non-Javadoc)

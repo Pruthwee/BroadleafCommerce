@@ -250,14 +250,16 @@ public class ResourcePurgeServiceImpl implements ResourcePurgeService {
                 em.unwrap(Session.class).doWork(new Work() {
                     @Override
                     public void execute(Connection connection) throws SQLException {
-                        Statement statement = connection.createStatement();
-                        for (String value : deleteStatement.values()) {
-                            String sql = value.replace("?", String.valueOf(order.getId()));
-                            LOG.debug(sql);
-                            statement.addBatch(sql);
+                        try (Statement statement = connection.createStatement()) {
+                            statement.setQueryTimeout(5); // 5 second query timeout
+                            for (String value : deleteStatement.values()) {
+                                String sql = value.replace("?", String.valueOf(order.getId()));
+                                LOG.debug(sql);
+                                statement.addBatch(sql);
+                            }
+                            extensionManager.getProxy().addPurgeStatements(statement, rootTypeIdValue);
+                            statement.executeBatch();
                         }
-                        extensionManager.getProxy().addPurgeStatements(statement, rootTypeIdValue);
-                        statement.executeBatch();
                     }
                 });
                 TransactionUtils.finalizeTransaction(status, transactionManager, false);

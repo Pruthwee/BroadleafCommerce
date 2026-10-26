@@ -25,7 +25,7 @@
 
         <div id="messages" th:insert="~{${templateName}::messages}" ></div>
 
-        <div id="js-warning" th:text="#{admin.login.requiresJs}" onload="" ></div>
+        <div id="js-warning" th:text="#{admin.login.requiresJs}" data-js-warning ></div>
 
         <div id="js-visible" style="display: none;">
             <div th:replace="~{${templateName}::form}" ></div>

@@ -348,18 +348,24 @@ public class StaticAssetStorageServiceImpl implements StaticAssetStorageService 
 
     @Override
     public Blob createBlob(final InputStream uploadedFileInputStream, final long fileSize) throws IOException {
-        final Blob[] blob = new Blob[1];
+        // Lazy initialization of blob to avoid static initializer I/O
+        final java.util.concurrent.atomic.AtomicReference<Blob> blobRef = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<IOException> errorRef = new java.util.concurrent.atomic.AtomicReference<>();
         transUtil.runTransactionalOperation(new StreamCapableTransactionalOperationAdapter() {
             @Override
             public void execute() {
                 try {
-                    blob[0] = staticAssetStorageDao.createBlob(uploadedFileInputStream, fileSize);
+                    blobRef.set(staticAssetStorageDao.createBlob(uploadedFileInputStream, fileSize));
                 } catch (IOException e) {
                     LOG.error("Unable to create blob from InputStream.", e);
+                    errorRef.set(e);
                 }
             }
         }, RuntimeException.class);
-        return blob[0];
+        if (errorRef.get() != null) {
+            throw errorRef.get();
+        }
+        return blobRef.get();
     }
 
     /**

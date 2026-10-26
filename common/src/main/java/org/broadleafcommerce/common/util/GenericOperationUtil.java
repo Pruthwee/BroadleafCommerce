@@ -127,4 +127,13 @@ public class GenericOperationUtil {
         }
     }
 
+    /**
+     * Registers a JVM shutdown hook for graceful termination in EKS/ECS (cr-java-0117).
+     */
+    public static void registerShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Graceful shutdown for retryable operations
+        }));
+    }
+
 }

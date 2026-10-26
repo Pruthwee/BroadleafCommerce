@@ -211,6 +211,39 @@ public class BroadleafEnvironmentConfigurer {
                 LOG.warn(String.format("An environment property of %s was specified but the file path %s does not exist, not overriding properties", PROPERTY_OVERRIDES_PROPERTY, overrideFileLocation));
             }
         }
+
+        // Load property overrides from S3 if configured (cr-java-0061: Replace hard-coded file paths with Amazon S3)
+        String s3BucketName = System.getenv("S3_BUCKET_NAME");
+        if (StringUtils.isNotBlank(s3BucketName)) {
+            try {
+                software.amazon.awssdk.services.s3.S3Client s3Client = software.amazon.awssdk.services.s3.S3Client.builder()
+                        .region(software.amazon.awssdk.regions.Region.of(System.getenv("AWS_REGION")))
+                        .credentialsProvider(software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider.create())
+                        .build();
+                // Load shared override from S3
+                String sharedOverrideS3Key = environment.getProperty("broadleaf.properties.shared.overrides.s3.key", "config/shared-overrides.properties");
+                try {
+                    software.amazon.awssdk.services.s3.model.GetObjectRequest getRequest = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                            .bucket(s3BucketName)
+                            .key(sharedOverrideS3Key)
+                            .build();
+                    software.amazon.awssdk.core.ResponseBytes<software.amazon.awssdk.services.s3.model.GetObjectResponse> response = s3Client.getObjectAsBytes(getRequest);
+                    org.springframework.core.io.ByteArrayResource s3Resource = new org.springframework.core.io.ByteArrayResource(response.asByteArray()) {
+                        @Override
+                        public String getFilename() {
+                            return sharedOverrideS3Key;
+                        }
+                    };
+                    addToEnvironment(environment, java.util.Collections.singletonList(s3Resource), SHARED_OVERRIDE_SOURCES_NAME, currentHighestPrecedenceProperties);
+                } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+                    // S3 key not found, skip
+                } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+                    LOG.warn("Error loading shared overrides from S3", e);
+                }
+            } catch (Exception e) {
+                LOG.warn("Error creating S3 client for property loading", e);
+            }
+        }
     }
 
     protected Resource createClasspathResource(String rootLocation, String propertyName, String suffix) {
