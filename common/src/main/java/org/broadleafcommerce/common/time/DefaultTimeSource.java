@@ -22,6 +22,6 @@ package org.broadleafcommerce.common.time;
 public class DefaultTimeSource implements TimeSource {
 
     public long timeInMillis() {
-        return System.currentTimeMillis();
+        return java.time.Instant.now().toEpochMilli();
     }
 }

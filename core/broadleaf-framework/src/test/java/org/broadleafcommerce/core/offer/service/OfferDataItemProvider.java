@@ -755,13 +755,13 @@ public class OfferDataItemProvider {
     }
     
     public Date yesterday() {
-        long now = System.currentTimeMillis();
+        long now = java.time.Instant.now().toEpochMilli();
         long then = now - (1000 * 60 * 60 * 24);
         return new Date(then);
     }
     
     public Date tomorrow() {
-        long now = System.currentTimeMillis();
+        long now = java.time.Instant.now().toEpochMilli();
         long then = now + (1000 * 60 * 60 * 24);
         return new Date(then);
     }

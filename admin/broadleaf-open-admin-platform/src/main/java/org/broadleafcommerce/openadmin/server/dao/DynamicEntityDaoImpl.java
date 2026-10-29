@@ -127,7 +127,7 @@ public class DynamicEntityDaoImpl implements DynamicEntityDao, ApplicationContex
     @Value("${cache.entity.dao.metadata.ttl}")
     protected int cacheEntityMetaDataTtl;
 
-    protected long lastCacheFlushTime = System.currentTimeMillis();
+    protected long lastCacheFlushTime = java.time.Instant.now().toEpochMilli();
 
     protected ApplicationContext applicationContext;
 
@@ -203,8 +203,8 @@ public class DynamicEntityDaoImpl implements DynamicEntityDao, ApplicationContex
         if (cacheEntityMetaDataTtl == 0) {
             return false;
         } else {
-            if ((System.currentTimeMillis() - lastCacheFlushTime) > cacheEntityMetaDataTtl) {
-                lastCacheFlushTime = System.currentTimeMillis();
+            if ((java.time.Instant.now().toEpochMilli() - lastCacheFlushTime) > cacheEntityMetaDataTtl) {
+                lastCacheFlushTime = java.time.Instant.now().toEpochMilli();
                 METADATA_CACHE.clear();
                 DynamicDaoHelperImpl.POLYMORPHIC_ENTITY_CACHE.clear();
                 DynamicDaoHelperImpl.POLYMORPHIC_ENTITY_CACHE_WO_EXCLUSIONS.clear();

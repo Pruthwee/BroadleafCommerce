@@ -233,7 +233,7 @@ public class BroadleafCacheProcessor extends AbstractAttrProcessor {
             if (!StringUtils.isEmpty(cacheTimeout) && StringUtils.isNumeric(cacheTimeout)) {
                 Long timeout = Long.valueOf(cacheTimeout) * 1000;
                 Long expiryTime = cacheElement.getCreationTime() + timeout;
-                if (expiryTime < System.currentTimeMillis()) {
+                if (expiryTime < java.time.Instant.now().toEpochMilli()) {
                     return true;
                 }
             }

@@ -323,7 +323,7 @@ public class OrderDaoImpl implements OrderDao {
                 ol.setOrderId(order.getId());
                 ol.setLocked(true);
                 ol.setKey(orderLockKey);
-                ol.setLastUpdated(System.currentTimeMillis());
+                ol.setLastUpdated(java.time.Instant.now().toEpochMilli());
                 em.persist(ol);
                 return true;
             } catch (EntityExistsException e) {
@@ -336,10 +336,10 @@ public class OrderDaoImpl implements OrderDao {
         // we acquired the lock. 
         q = em.createNamedQuery("BC_ORDER_LOCK_ACQUIRE");
         q.setParameter("orderId", order.getId());
-        q.setParameter("currentTime", System.currentTimeMillis());
+        q.setParameter("currentTime", java.time.Instant.now().toEpochMilli());
         q.setParameter("key", orderLockKey);
         Long orderLockTimeToLive = getDatabaseOrderLockTimeToLive();
-        q.setParameter("timeout", orderLockTimeToLive==-1L?orderLockTimeToLive:System.currentTimeMillis() - orderLockTimeToLive);
+        q.setParameter("timeout", orderLockTimeToLive==-1L?orderLockTimeToLive:java.time.Instant.now().toEpochMilli() - orderLockTimeToLive);
         q.setHint(QueryHints.HINT_CACHEABLE, false);
         int rowsAffected = q.executeUpdate();
 

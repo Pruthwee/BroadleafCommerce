@@ -65,7 +65,7 @@ public class GeneratedResource extends AbstractResource implements Serializable 
         Assert.notNull(source);
         this.source = source;
         this.description = description;
-        timeGenerated = System.currentTimeMillis();
+        timeGenerated = java.time.Instant.now().toEpochMilli();
     }
     
     @Override

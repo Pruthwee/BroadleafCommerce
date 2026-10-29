@@ -182,7 +182,7 @@ public class BroadleafFileServiceImpl implements BroadleafFileService {
         if (returnFile != null && returnFile.exists()) {
             if (localTimeout != null) {
                 long lastModified = returnFile.lastModified();
-                long now = System.currentTimeMillis();
+                long now = java.time.Instant.now().toEpochMilli();
                 if ((now - lastModified) <= localTimeout.longValue()) {
                     return returnFile;
                 }

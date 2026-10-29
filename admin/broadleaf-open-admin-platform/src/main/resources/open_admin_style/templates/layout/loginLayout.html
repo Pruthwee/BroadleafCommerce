@@ -19,7 +19,7 @@
 
         <div id="messages" th:include="${templateName}::messages" />
 
-        <div id="js-warning" th:text="#{admin.login.requiresJs}" onload="" />
+        <div id="js-warning" th:text="#{admin.login.requiresJs}" />
 
         <div id="js-visible" style="display: none;">
             <div th:substituteby="${templateName}::form" />

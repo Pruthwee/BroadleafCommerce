@@ -138,19 +138,18 @@ public class SiteMapGeneratorTest {
     }
 
     protected String convertFileToString(File file) throws IOException {
-        FileInputStream fin = new FileInputStream(file);
-        BufferedReader br = new BufferedReader(new InputStreamReader(fin));
         StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-            if (line.contains("</lastmod>")) {
-                continue;
+        try (FileInputStream fin = new FileInputStream(file);
+                BufferedReader br = new BufferedReader(new InputStreamReader(fin))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.contains("</lastmod>")) {
+                    continue;
+                }
+                line = line.replaceAll("\\s+", "");
+                sb.append(line);
             }
-            line = line.replaceAll("\\s+", "");
-            sb.append(line);
         }
-        br.close();
-        fin.close();
         return sb.toString();
     }
 

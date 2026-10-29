@@ -236,18 +236,19 @@ public class StaticAssetStorageServiceImpl implements StaticAssetStorageService 
         if (convertedParameters.isEmpty()) {
             return buildModel(baseLocalFile.getAbsolutePath(), mimeType);
         } else {
-            FileInputStream assetStream = new FileInputStream(baseLocalFile);
-            BufferedInputStream original = new BufferedInputStream(assetStream);
-            original.mark(0);                                    
-            
-            Operation[] operations = artifactService.buildOperations(convertedParameters, original, staticAsset.getMimeType());
-            InputStream converted = artifactService.convert(original, operations, staticAsset.getMimeType());
-            
-            createLocalFileFromInputStream(converted, cacheFile);
-            if ("image/gif".equals(mimeType)) {
-                mimeType = "image/png";
+            try (FileInputStream assetStream = new FileInputStream(baseLocalFile);
+                    BufferedInputStream original = new BufferedInputStream(assetStream)) {
+                original.mark(0);
+
+                Operation[] operations = artifactService.buildOperations(convertedParameters, original, staticAsset.getMimeType());
+                InputStream converted = artifactService.convert(original, operations, staticAsset.getMimeType());
+
+                createLocalFileFromInputStream(converted, cacheFile);
+                if ("image/gif".equals(mimeType)) {
+                    mimeType = "image/png";
+                }
+                return buildModel(cacheFile.getAbsolutePath(), mimeType);
             }
-            return buildModel(cacheFile.getAbsolutePath(), mimeType);
         }
     }
 

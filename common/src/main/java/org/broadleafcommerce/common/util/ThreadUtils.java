@@ -39,7 +39,7 @@ public class ThreadUtils {
         cal.set(year, month, day, hour, min, sec);
 
         long msFuture = cal.getTime().getTime();
-        long msNow = System.currentTimeMillis();
+        long msNow = java.time.Instant.now().toEpochMilli();
         long msSleep = msFuture - msNow;
 
         if (msSleep <= 0) {

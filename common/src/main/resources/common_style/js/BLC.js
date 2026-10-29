@@ -102,7 +102,7 @@ var BLC = (function($) {
     	    try {
     	        extractedData = $.parseJSON($dataDiv.text());
     	    } catch (e) {
-    	        console.log("Could not parse data as JSON: " + $dataDiv.text());
+    	        console.error("Could not parse data as JSON: " + $dataDiv.text(), e);
     	    }
 	        $dataDiv.remove();
     	}

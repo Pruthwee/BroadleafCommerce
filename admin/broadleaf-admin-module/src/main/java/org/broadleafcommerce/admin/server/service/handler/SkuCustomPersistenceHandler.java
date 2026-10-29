@@ -102,7 +102,7 @@ public class SkuCustomPersistenceHandler extends CustomPersistenceHandlerAdapter
     @Value("${cache.entity.dao.metadata.ttl}")
     protected int cacheEntityMetaDataTtl;
 
-    protected long lastCacheFlushTime = System.currentTimeMillis();
+    protected long lastCacheFlushTime = java.time.Instant.now().toEpochMilli();
 
     protected static final Map<String, Map<String, FieldMetadata>> METADATA_CACHE =
             new EfficientLRUMap<String, Map<String, FieldMetadata>>(1000);
@@ -158,8 +158,8 @@ public class SkuCustomPersistenceHandler extends CustomPersistenceHandlerAdapter
         if (cacheEntityMetaDataTtl == 0) {
             return false;
         } else {
-            if ((System.currentTimeMillis() - lastCacheFlushTime) > cacheEntityMetaDataTtl) {
-                lastCacheFlushTime = System.currentTimeMillis();
+            if ((java.time.Instant.now().toEpochMilli() - lastCacheFlushTime) > cacheEntityMetaDataTtl) {
+                lastCacheFlushTime = java.time.Instant.now().toEpochMilli();
                 METADATA_CACHE.clear();
                 return true;
             } else {

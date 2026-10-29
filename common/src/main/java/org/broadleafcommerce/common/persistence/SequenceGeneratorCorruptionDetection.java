@@ -171,6 +171,14 @@ public class SequenceGeneratorCorruptionDetection implements ApplicationListener
                                         "queries for this detection, set the 'default.schema.sequence.generator' property in your application's common.properties or common-shared.properties. Also, if you are upgrading\n" +
                                         "from 1.6 or below, please refer to http://docs.broadleafcommerce.org/current/1.6-to-2.0-Migration.html for important information regarding migrating your SEQUENCE_GENERATOR table.";
                                     LOG.error("Broadleaf Commerce failed to start", new RuntimeException(reason));
+                                    // Register a JVM shutdown hook so that the termination caused by the detected
+                                    // inconsistency is recorded and runs in the same way as a SIGTERM from an orchestrator.
+                                    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            LOG.error("Broadleaf Commerce is shutting down because of a detected sequence generator inconsistency.");
+                                        }
+                                    }, "bl-sequence-generator-shutdown"));
                                     System.exit(1);
                                 }
                             }

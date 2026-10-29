@@ -122,7 +122,7 @@ public class ServerCookie {
                     buf.append( ancientDate );
                 else
                     OLD_COOKIE_FORMAT.get().format(
-                            new Date(System.currentTimeMillis() +
+                            new Date(java.time.Instant.now().toEpochMilli() +
                                     maxAge*1000L),
                                     buf, new FieldPosition(0));
             }

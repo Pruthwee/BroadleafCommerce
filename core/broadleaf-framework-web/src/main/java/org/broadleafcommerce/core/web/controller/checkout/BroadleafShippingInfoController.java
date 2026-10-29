@@ -291,7 +291,7 @@ public class BroadleafShippingInfoController extends AbstractCheckoutController 
         customerAddressService.saveCustomerAddress(customerAddress);
 
         //append current time to redirect to fix a problem with ajax caching in IE
-        return getMultishipAddAddressSuccessView() + "?_=" + System.currentTimeMillis();
+        return getMultishipAddAddressSuccessView() + "?_=" + java.time.Instant.now().toEpochMilli();
     }
 
     public String saveMultiShipInstruction(HttpServletRequest request, HttpServletResponse response, Model model,
@@ -309,7 +309,7 @@ public class BroadleafShippingInfoController extends AbstractCheckoutController 
         fulfillmentGroupService.save(fulfillmentGroup);
 
         //append current time to redirect to fix a problem with ajax caching in IE
-        return getCheckoutPageRedirect()+ "?_=" + System.currentTimeMillis();
+        return getCheckoutPageRedirect()+ "?_=" + java.time.Instant.now().toEpochMilli();
     }
 
 }

@@ -53,7 +53,7 @@ public class StopWatch {
             throw new IllegalStateException("Stopwatch already started. ");
         }
         this.stopTime = -1;
-        this.startTime = System.currentTimeMillis();
+        this.startTime = java.time.Instant.now().toEpochMilli();
         this.runningState = STATE_RUNNING;
         return this;
     }
@@ -63,7 +63,7 @@ public class StopWatch {
             throw new IllegalStateException("Stopwatch is not running. ");
         }
         if (this.runningState == STATE_RUNNING) {
-            this.stopTime = System.currentTimeMillis();
+            this.stopTime = java.time.Instant.now().toEpochMilli();
         }
         this.runningState = STATE_STOPPED;
         return this;
@@ -81,7 +81,7 @@ public class StopWatch {
         if (this.runningState != STATE_RUNNING) {
             throw new IllegalStateException("Stopwatch is not running. ");
         }
-        this.stopTime = System.currentTimeMillis();
+        this.stopTime = java.time.Instant.now().toEpochMilli();
         this.splitState = STATE_SPLIT;
         return this;
     }
@@ -99,7 +99,7 @@ public class StopWatch {
         if (this.runningState != STATE_RUNNING) {
             throw new IllegalStateException("Stopwatch must be running to suspend. ");
         }
-        this.stopTime = System.currentTimeMillis();
+        this.stopTime = java.time.Instant.now().toEpochMilli();
         this.runningState = STATE_SUSPENDED;
         return this;
     }
@@ -108,7 +108,7 @@ public class StopWatch {
         if (this.runningState != STATE_SUSPENDED) {
             throw new IllegalStateException("Stopwatch must be suspended to resume. ");
         }
-        this.startTime += (System.currentTimeMillis() - this.stopTime);
+        this.startTime += (java.time.Instant.now().toEpochMilli() - this.stopTime);
         this.stopTime = -1;
         this.runningState = STATE_RUNNING;
         return this;
@@ -120,7 +120,7 @@ public class StopWatch {
         } else if (this.runningState == STATE_UNSTARTED) {
             return 0;
         } else if (this.runningState == STATE_RUNNING) {
-            return System.currentTimeMillis() - this.startTime;
+            return java.time.Instant.now().toEpochMilli() - this.startTime;
         }
         throw new RuntimeException("Illegal running state has occured. ");
     }
@@ -136,7 +136,7 @@ public class StopWatch {
         if (this.splitState != STATE_SPLIT) {
             throw new IllegalStateException("Stopwatch must be split to get the lap time. ");
         }
-        return System.currentTimeMillis() - this.stopTime;
+        return java.time.Instant.now().toEpochMilli() - this.stopTime;
     }
 
     public long getStartTime() {
